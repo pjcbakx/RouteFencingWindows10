@@ -33,7 +33,7 @@ namespace RouteFencing
         Geocoordinate currentLocation;
         Geolocator geolocator;
         Geoposition pos;
-        private bool accesLocation = false;
+        private bool locationAccess = false;
 
         public MainPage()
         {
@@ -41,10 +41,11 @@ namespace RouteFencing
 
             geolocator = new Geolocator();
 
-            Summary.Text = "Setting up the map..";
+            Summary.Text = "Locating your current position...";
 
             GeofenceMonitor.Current.GeofenceStateChanged += OnGeofenceStateChanged;
-            geolocator.StatusChanged += Geolocator_StatusChanged;     
+            geolocator.StatusChanged += Geolocator_StatusChanged;
+            geolocator.PositionChanged += PositionChanged;
         }
 
         private void AddMapIcon(Geocoordinate location, String name)
@@ -80,6 +81,7 @@ namespace RouteFencing
                 {
                     case PositionStatus.Ready:
                         await this.getCurrentLocation();
+                        
                         break;
                     case PositionStatus.Initializing:
                         break;
@@ -104,17 +106,12 @@ namespace RouteFencing
                 //Updating current location
                 currentLocation = e.Position.Coordinate;
 
-                Summary.Text = "";
-
                 //Updating mapicon of the current location
                 InputMap.MapElements.Clear();
                 GeofenceMonitor.Current.Geofences.Clear();
                 AddMapIcon(currentLocation, "You are here");
-
-                //Zooming to current location
-                InputMap.Center = currentLocation.Point;
-                InputMap.ZoomLevel = 8;
             });
+            
         }
 
         private async Task getCurrentLocation()
@@ -130,7 +127,11 @@ namespace RouteFencing
                     Summary.Text = "Locating your current position...";
                     pos = await geolocator.GetGeopositionAsync();
                     currentLocation = pos.Coordinate;
-                    geolocator.PositionChanged += PositionChanged;
+                    Summary.Text = "Location found";
+
+                    //Zooming to current location
+                    InputMap.Center = currentLocation.Point;
+                    InputMap.ZoomLevel = 8;
                     break;
                 case GeolocationAccessStatus.Denied:
                     //Getting location is disabled, show a link to the settings
