@@ -46,6 +46,9 @@ namespace RouteFencing
             routeLocations.Add(new LocationData("Lovensdijkstraat 63", 51.58541489, 4.79325905));
             routeLocations.Add(new LocationData("Hogeschoollaan", 51.58405327, 4.79573339));
 
+            locationList.ItemsSource = routeLocations;
+            locationList.SelectedIndex = 0;
+
             Summary.Text = "Locating your current position...";
 
             GeofenceMonitor.Current.GeofenceStateChanged += OnGeofenceStateChanged;
@@ -58,7 +61,7 @@ namespace RouteFencing
             MapIcon mapIcon = new MapIcon();
             mapIcon.Location = new Geopoint(location.getPosition());
             mapIcon.NormalizedAnchorPoint = new Point(0.5, 1.0);
-            mapIcon.Title = location.getName();
+            mapIcon.Title = location.name;
             InputMap.MapElements.Add(mapIcon);
 
             // Geofence
@@ -71,7 +74,7 @@ namespace RouteFencing
                 MonitoredGeofenceStates.Exited |
                 MonitoredGeofenceStates.Removed;
             TimeSpan dwellTime = TimeSpan.FromSeconds(1);
-            var geofence = new Windows.Devices.Geolocation.Geofencing.Geofence(location.getName(), circle, monitoredStates, false, dwellTime);
+            var geofence = new Windows.Devices.Geolocation.Geofencing.Geofence(location.name, circle, monitoredStates, false, dwellTime);
             GeofenceMonitor.Current.Geofences.Add(geofence);
         }
 
@@ -162,6 +165,56 @@ namespace RouteFencing
             }
         }
 
+        private async Task getCurrentLocation()
+        {
+            //Request the current location with the geolocator
+            var accessStatus = await Geolocator.RequestAccessAsync();
+
+            //Check the response type
+            switch (accessStatus)
+            {
+                case GeolocationAccessStatus.Allowed:
+                    //Getting location is enabled
+                    Summary.Text = "Locating your current position...";
+                    pos = await geolocator.GetGeopositionAsync();
+                    currentLocation = pos.Coordinate;
+                    Summary.Text = "Location found";
+
+                    //Zooming to current location
+                    InputMap.Center = currentLocation.Point;
+                    InputMap.ZoomLevel = 8;
+                    break;
+                case GeolocationAccessStatus.Denied:
+                    //Getting location is disabled, show a link to the settings
+                    Summary.Text = "";
+                    Hyperlink link = new Hyperlink();
+
+                    Summary.Inlines.Add(new Run()
+                    {
+                        Text = "Access to current location denied."
+                    });
+                    Summary.Inlines.Add(new LineBreak());
+                    Summary.Inlines.Add(new Run()
+                    {
+                        Text = "Check your "
+                    });
+
+                    link.Inlines.Add(new Run()
+                    {
+                        Text = "location settings",
+                        Foreground = new SolidColorBrush(Colors.White)
+                    });
+                    link.NavigateUri = new Uri("ms-settings:privacy-location");
+
+                    Summary.Inlines.Add(link);
+                    break;
+                case GeolocationAccessStatus.Unspecified:
+                    break;
+            }
+        }
+
+        //Below are the event functions
+
         private async void Geolocator_StatusChanged(Geolocator sender, StatusChangedEventArgs args)
         {
             //Waiting to get the location
@@ -217,59 +270,8 @@ namespace RouteFencing
                 {
                     AddMapIcon(data);
                 }
-
-                if(InputMap.Routes.Count == 0)
-                    getRouteWithCurrentLocation(currentLocation.Point, routeLocations[0]);
             });
             
-        }
-
-        private async Task getCurrentLocation()
-        {
-            //Request the current location with the geolocator
-            var accessStatus = await Geolocator.RequestAccessAsync();
-
-            //Check the response type
-            switch (accessStatus)
-            {
-                case GeolocationAccessStatus.Allowed:
-                    //Getting location is enabled
-                    Summary.Text = "Locating your current position...";
-                    pos = await geolocator.GetGeopositionAsync();
-                    currentLocation = pos.Coordinate;
-                    Summary.Text = "Location found";
-
-                    //Zooming to current location
-                    InputMap.Center = currentLocation.Point;
-                    InputMap.ZoomLevel = 8;
-                    break;
-                case GeolocationAccessStatus.Denied:
-                    //Getting location is disabled, show a link to the settings
-                    Summary.Text = "";
-                    Hyperlink link = new Hyperlink();
-
-                    Summary.Inlines.Add(new Run()
-                    {
-                        Text = "Access to current location denied."
-                    });
-                    Summary.Inlines.Add(new LineBreak());
-                    Summary.Inlines.Add(new Run()
-                    {
-                        Text = "Check your "
-                    });
-
-                    link.Inlines.Add(new Run()
-                    {
-                        Text = "location settings",
-                        Foreground = new SolidColorBrush(Colors.White)
-                    });
-                    link.NavigateUri = new Uri("ms-settings:privacy-location");
-
-                    Summary.Inlines.Add(link);
-                    break;
-                case GeolocationAccessStatus.Unspecified:
-                    break;
-            }
         }
 
         public async void OnGeofenceStateChanged(GeofenceMonitor sender, object e)
@@ -306,6 +308,14 @@ namespace RouteFencing
                     }
                 }
             });
+        }
+
+        private void GetRouteButton_Click(object sender, RoutedEventArgs e)
+        {
+            LocationData data = (LocationData) locationList.SelectedItem;
+
+            InputMap.Routes.Clear();
+            getRouteWithCurrentLocation(currentLocation.Point, data);
         }
     }
 }

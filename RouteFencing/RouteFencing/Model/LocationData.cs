@@ -9,7 +9,7 @@ namespace RouteFencing.Model
 {
     class LocationData
     {
-        private String name;
+        public String name { get; }
         private BasicGeoposition position;
 
         public LocationData(String name, double latitude, double longitude)
@@ -22,8 +22,5 @@ namespace RouteFencing.Model
 
         public BasicGeoposition getPosition()
         { return position; }
-
-        public String getName()
-        { return name; }
     }
 }

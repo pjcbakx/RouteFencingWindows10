@@ -64,17 +64,8 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="5,5,0,0" Text="From:"/>
-                                <ComboBox  x:Name="locationList1" Grid.Row="0" Grid.Column="1" Margin="5,5,0,0" Width="270">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding name}"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-
                                 <TextBlock Grid.Row="1" Grid.Column="0" Margin="5,5,0,0" Text="To:"/>
-                                <ComboBox  x:Name="locationList2" Grid.Row="1" Grid.Column="1" Margin="5,5,0,0" Width="270">
+                                <ComboBox  x:Name="locationList" Grid.Row="1" Grid.Column="1" Margin="5,5,0,0" Width="270">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding name}"/>
@@ -91,7 +82,7 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <Button Grid.Row="0" Margin="5" Foreground="White" Content="Get route" />
+                                <Button x:Name="GetRouteButton" Grid.Row="0" Margin="5" Foreground="White" Content="Get route" Click="GetRouteButton_Click"/>
                                 <TextBlock x:Name="Error" Foreground="Red" FontWeight="Bold" Margin="0,0,30,0" Grid.Row="0" Grid.Column="1" Text="Error"/>
                             </Grid>
                         </Grid>
