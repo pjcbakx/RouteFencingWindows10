@@ -45,11 +45,15 @@ namespace RouteFencing
             routeLocations = new List<LocationData>();
             routeLocations.Add(new LocationData("Lovensdijkstraat 63", 51.58541489, 4.79325905));
             routeLocations.Add(new LocationData("Hogeschoollaan", 51.58405327, 4.79573339));
+            routeLocations.Add(new LocationData("Utrecht", 52.090737, 5.121420));
 
             locationList.ItemsSource = routeLocations;
             locationList.SelectedIndex = 0;
 
             Summary.Text = "Locating your current position...";
+            Error.Text = "";
+
+            GeofenceMonitor.Current.Geofences.Clear();
 
             GeofenceMonitor.Current.GeofenceStateChanged += OnGeofenceStateChanged;
             geolocator.StatusChanged += Geolocator_StatusChanged;
@@ -86,19 +90,6 @@ namespace RouteFencing
             mapIcon.NormalizedAnchorPoint = new Point(0.5, 1.0);
             mapIcon.Title = name;
             InputMap.MapElements.Add(mapIcon);
-
-            // Geofence
-            BasicGeoposition pos = new BasicGeoposition();
-            pos.Latitude = mapIcon.Location.Position.Latitude;
-            pos.Longitude = mapIcon.Location.Position.Longitude;
-            Geocircle circle = new Geocircle(pos, 35);
-            MonitoredGeofenceStates monitoredStates =
-                MonitoredGeofenceStates.Entered |
-                MonitoredGeofenceStates.Exited |
-                MonitoredGeofenceStates.Removed;
-            TimeSpan dwellTime = TimeSpan.FromSeconds(1);
-            var geofence = new Windows.Devices.Geolocation.Geofencing.Geofence(name, circle, monitoredStates, false, dwellTime);
-            GeofenceMonitor.Current.Geofences.Add(geofence);
         }
 
         private async void getRouteWithCurrentLocation(Geopoint startLoc, LocationData endLoc)
@@ -178,7 +169,12 @@ namespace RouteFencing
                     Summary.Text = "Locating your current position...";
                     pos = await geolocator.GetGeopositionAsync();
                     currentLocation = pos.Coordinate;
-                    Summary.Text = "Location found";
+                    Summary.Text = "Location found, make an route";
+
+                    /*foreach (LocationData data in routeLocations)
+                    {
+                        AddMapIcon(data);
+                    }*/
 
                     //Zooming to current location
                     InputMap.Center = currentLocation.Point;
@@ -209,6 +205,7 @@ namespace RouteFencing
                     Summary.Inlines.Add(link);
                     break;
                 case GeolocationAccessStatus.Unspecified:
+                    Summary.Text = "An unexpected problem occured";
                     break;
             }
         }
@@ -234,7 +231,9 @@ namespace RouteFencing
                     case PositionStatus.NotInitialized:
                     case PositionStatus.NotAvailable:
                     default:
-                        await this.getCurrentLocation();
+                        try { await this.getCurrentLocation(); }
+                        catch { Summary.Text = "No internet connection"; }
+                        
                         break;
                 }
             });
@@ -252,9 +251,6 @@ namespace RouteFencing
                 currentLocation = e.Position.Coordinate;
 
                 //Updating mapicon of the current location
-                GeofenceMonitor.Current.Geofences.Clear();
-
-
                 for (int i = 0; i < InputMap.MapElements.Count; i++)
                 {
                     MapIcon icon = (MapIcon)InputMap.MapElements[i];
@@ -265,13 +261,7 @@ namespace RouteFencing
                 }
 
                 AddMapIcon(currentLocation, "You are here");
-
-                foreach (LocationData data in routeLocations)
-                {
-                    AddMapIcon(data);
-                }
-            });
-            
+            });        
         }
 
         public async void OnGeofenceStateChanged(GeofenceMonitor sender, object e)
@@ -297,6 +287,18 @@ namespace RouteFencing
 
                         // NOTE: You might want to write your app to take particular
                         // action based on whether the app has internet connectivity.
+                        LocationData geofenceLocation = null;
+
+                        foreach (LocationData data in routeLocations)
+                        {
+                            if (data.name.Equals(geofence.Id))
+                                geofenceLocation = data;
+                        }
+
+                        if(geofenceLocation != null)
+                        {
+                            Summary.Text = "Geofence entered: " + geofenceLocation.name;
+                        }
 
                     }
                     else if (state == GeofenceState.Exited)
@@ -305,6 +307,17 @@ namespace RouteFencing
 
                         // NOTE: You might want to write your app to take particular
                         // action based on whether the app has internet connectivity.
+
+                        LocationData geofenceLocation = null;
+
+                        foreach (LocationData data in routeLocations)
+                        {
+                            if (data.name.Equals(geofence.Id))
+                                geofenceLocation = data;
+                        }
+
+                        Summary.Text = "Geofence exited: " + geofenceLocation.name;
+                        InputMap.Routes.Clear();
                     }
                 }
             });
@@ -312,10 +325,21 @@ namespace RouteFencing
 
         private void GetRouteButton_Click(object sender, RoutedEventArgs e)
         {
-            LocationData data = (LocationData) locationList.SelectedItem;
+            if (currentLocation != null)
+            {
+                LocationData data = (LocationData)locationList.SelectedItem;
 
-            InputMap.Routes.Clear();
-            getRouteWithCurrentLocation(currentLocation.Point, data);
+
+                GeofenceMonitor.Current.Geofences.Clear();
+                InputMap.Routes.Clear();
+                getRouteWithCurrentLocation(currentLocation.Point, data);
+
+                AddMapIcon(data);
+            }
+            else
+            {
+                Error.Text = "Current location unknown";
+            }
         }
     }
 }
