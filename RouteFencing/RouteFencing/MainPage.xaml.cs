@@ -72,7 +72,7 @@ namespace RouteFencing
             BasicGeoposition pos = new BasicGeoposition();
             pos.Latitude = mapIcon.Location.Position.Latitude;
             pos.Longitude = mapIcon.Location.Position.Longitude;
-            Geocircle circle = new Geocircle(pos, 35);
+            Geocircle circle = new Geocircle(pos, Int32.Parse(GeofenceRadius.Text));
             MonitoredGeofenceStates monitoredStates =
                 MonitoredGeofenceStates.Entered |
                 MonitoredGeofenceStates.Exited |
