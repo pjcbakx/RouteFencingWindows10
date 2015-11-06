@@ -32,10 +32,12 @@ namespace RouteFencing
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        Geocoordinate currentLocation;
-        Geolocator geolocator;
-        Geoposition pos;
+        private Geocoordinate currentLocation;
+        private Geolocator geolocator;
+        private Geoposition pos;
         private List<LocationData> routeLocations;
+
+        private String nameCurrentLocation = "You are here";
 
         public MainPage()
         {
@@ -68,6 +70,23 @@ namespace RouteFencing
             mapIcon.Title = location.name;
             InputMap.MapElements.Add(mapIcon);
 
+            /*var lat = (latitude * Math.PI) / 180;     
+            var lon = (longitude * Math.PI) / 180;
+            var d = parseFloat(radius) / R;
+            var circlePoints = new Array();
+
+            for (x = 0; x <= 360; x += 5)
+            {
+                var p2 = new MM.Location(0, 0);
+                brng = x * Math.PI / 180;
+                p2.latitude = Math.asin(Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(brng));
+
+                p2.longitude = ((lon + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat),
+                                 Math.cos(d) - Math.sin(lat) * Math.sin(p2.latitude))) * 180) / Math.PI;
+                p2.latitude = (p2.latitude * 180) / Math.PI;
+                circlePoints.push(p2);
+            }*/
+
             // Geofence
             BasicGeoposition pos = new BasicGeoposition();
             pos.Latitude = mapIcon.Location.Position.Latitude;
@@ -80,6 +99,38 @@ namespace RouteFencing
             TimeSpan dwellTime = TimeSpan.FromSeconds(1);
             var geofence = new Windows.Devices.Geolocation.Geofencing.Geofence(location.name, circle, monitoredStates, false, dwellTime);
             GeofenceMonitor.Current.Geofences.Add(geofence);
+
+            drawGeofence(pos, Int32.Parse(GeofenceRadius.Text));
+        }
+
+        private void drawGeofence(BasicGeoposition center, double radius)
+        {
+            List<BasicGeoposition> Points = new List<BasicGeoposition>();
+            Points.Add(new BasicGeoposition { Latitude = 52.1807858347893, Longitude = 5.39981396868825 });
+            Points.Add(new BasicGeoposition { Latitude = 52.1802563499659, Longitude = 5.40086925029755 });
+            Points.Add(new BasicGeoposition { Latitude = 52.1797477360815, Longitude = 5.40002955123782 });
+            Points.Add(new BasicGeoposition { Latitude = 52.180378222838, Longitude = 5.39925254881382 });
+
+            var strokeColor = Colors.DarkBlue;
+            strokeColor.A = 100;
+            var fillColor = Colors.Blue;
+            fillColor.A = 100;
+
+
+            MapPolygon circlePolygon = new MapPolygon();
+            List<BasicGeoposition> poslist = new List<BasicGeoposition>();
+            poslist.Add(center);
+
+
+            Geopath path = new Geopath(Points);
+            circlePolygon.FillColor = fillColor;
+            circlePolygon.StrokeColor = strokeColor;
+            circlePolygon.Path = path;
+            circlePolygon.ZIndex = 1;
+            circlePolygon.StrokeThickness = 3;
+            circlePolygon.StrokeDashed = true;
+
+            InputMap.MapElements.Add(circlePolygon);
         }
 
         private void AddMapIcon(Geocoordinate location, String name)
@@ -253,14 +304,17 @@ namespace RouteFencing
                 //Updating mapicon of the current location
                 for (int i = 0; i < InputMap.MapElements.Count; i++)
                 {
-                    MapIcon icon = (MapIcon)InputMap.MapElements[i];
-                    if (icon.Title.Equals("You are here"))
+                    if (InputMap.MapElements[i] is MapIcon)
                     {
-                        InputMap.MapElements.Remove(icon);
+                        MapIcon icon = (MapIcon)InputMap.MapElements[i];
+                        if (icon.Title.Equals(nameCurrentLocation))
+                        {
+                            InputMap.MapElements.Remove(icon);
+                        }
                     }
                 }
 
-                AddMapIcon(currentLocation, "You are here");
+                AddMapIcon(currentLocation, nameCurrentLocation);
             });        
         }
 
