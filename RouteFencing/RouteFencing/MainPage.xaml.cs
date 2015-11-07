@@ -32,18 +32,21 @@ namespace RouteFencing
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private Geocoordinate currentLocation;
         private Geolocator geolocator;
-        private Geoposition pos;
+        private Geocoordinate currentLocation;
         private List<LocationData> routeLocations;
+        private LocationData chosenRouteLocation;
 
         private String nameCurrentLocation = "You are here";
 
         public MainPage()
         {
             this.InitializeComponent();
-
             geolocator = new Geolocator();
+            Summary.Text = "Locating your current position...";
+            Error.Text = "";
+
+            //Fill an list with hardcoded sample locations
             routeLocations = new List<LocationData>();
             routeLocations.Add(new LocationData("Lovensdijkstraat 63", 51.58541489, 4.79325905));
             routeLocations.Add(new LocationData("Hogeschoollaan", 51.58405327, 4.79573339));
@@ -52,90 +55,19 @@ namespace RouteFencing
             locationList.ItemsSource = routeLocations;
             locationList.SelectedIndex = 0;
 
-            Summary.Text = "Locating your current position...";
-            Error.Text = "";
-
             GeofenceMonitor.Current.Geofences.Clear();
 
+            //Setup the events
             GeofenceMonitor.Current.GeofenceStateChanged += OnGeofenceStateChanged;
             geolocator.StatusChanged += Geolocator_StatusChanged;
             geolocator.PositionChanged += PositionChanged;
         }
 
-        private void AddMapIcon(LocationData location)
-        {
-            MapIcon mapIcon = new MapIcon();
-            mapIcon.Location = new Geopoint(location.getPosition());
-            mapIcon.NormalizedAnchorPoint = new Point(0.5, 1.0);
-            mapIcon.Title = location.name;
-            InputMap.MapElements.Add(mapIcon);
-
-            /*var lat = (latitude * Math.PI) / 180;     
-            var lon = (longitude * Math.PI) / 180;
-            var d = parseFloat(radius) / R;
-            var circlePoints = new Array();
-
-            for (x = 0; x <= 360; x += 5)
-            {
-                var p2 = new MM.Location(0, 0);
-                brng = x * Math.PI / 180;
-                p2.latitude = Math.asin(Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(brng));
-
-                p2.longitude = ((lon + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat),
-                                 Math.cos(d) - Math.sin(lat) * Math.sin(p2.latitude))) * 180) / Math.PI;
-                p2.latitude = (p2.latitude * 180) / Math.PI;
-                circlePoints.push(p2);
-            }*/
-
-            // Geofence
-            BasicGeoposition pos = new BasicGeoposition();
-            pos.Latitude = mapIcon.Location.Position.Latitude;
-            pos.Longitude = mapIcon.Location.Position.Longitude;
-            Geocircle circle = new Geocircle(pos, Int32.Parse(GeofenceRadius.Text));
-            MonitoredGeofenceStates monitoredStates =
-                MonitoredGeofenceStates.Entered |
-                MonitoredGeofenceStates.Exited |
-                MonitoredGeofenceStates.Removed;
-            TimeSpan dwellTime = TimeSpan.FromSeconds(1);
-            var geofence = new Windows.Devices.Geolocation.Geofencing.Geofence(location.name, circle, monitoredStates, false, dwellTime);
-            GeofenceMonitor.Current.Geofences.Add(geofence);
-
-            drawGeofence(pos, Int32.Parse(GeofenceRadius.Text));
-        }
-
-        private void drawGeofence(BasicGeoposition center, double radius)
-        {
-            List<BasicGeoposition> Points = new List<BasicGeoposition>();
-            Points.Add(new BasicGeoposition { Latitude = 52.1807858347893, Longitude = 5.39981396868825 });
-            Points.Add(new BasicGeoposition { Latitude = 52.1802563499659, Longitude = 5.40086925029755 });
-            Points.Add(new BasicGeoposition { Latitude = 52.1797477360815, Longitude = 5.40002955123782 });
-            Points.Add(new BasicGeoposition { Latitude = 52.180378222838, Longitude = 5.39925254881382 });
-
-            var strokeColor = Colors.DarkBlue;
-            strokeColor.A = 100;
-            var fillColor = Colors.Blue;
-            fillColor.A = 100;
-
-
-            MapPolygon circlePolygon = new MapPolygon();
-            List<BasicGeoposition> poslist = new List<BasicGeoposition>();
-            poslist.Add(center);
-
-
-            Geopath path = new Geopath(Points);
-            circlePolygon.FillColor = fillColor;
-            circlePolygon.StrokeColor = strokeColor;
-            circlePolygon.Path = path;
-            circlePolygon.ZIndex = 1;
-            circlePolygon.StrokeThickness = 3;
-            circlePolygon.StrokeDashed = true;
-
-            InputMap.MapElements.Add(circlePolygon);
-        }
+        #region Functions to draw on the map
 
         private void AddMapIcon(Geocoordinate location, String name)
         {
-            //MapIcon
+            //Add an mapicon for the given location
             MapIcon mapIcon = new MapIcon();
             mapIcon.Location = location.Point;
             mapIcon.NormalizedAnchorPoint = new Point(0.5, 1.0);
@@ -143,26 +75,55 @@ namespace RouteFencing
             InputMap.MapElements.Add(mapIcon);
         }
 
+        private void AddMapIcon(LocationData location)
+        {
+            //Add an mapicon for the given location
+            MapIcon mapIcon = new MapIcon();
+            mapIcon.Location = new Geopoint(location.getPosition());
+            mapIcon.NormalizedAnchorPoint = new Point(0.5, 1.0);
+            mapIcon.Title = location.name;
+            InputMap.MapElements.Add(mapIcon);
+
+            //Make the geofence of the given locationdata
+            location.MakeNewGeofence(Int32.Parse(GeofenceRadius.Text));
+            GeofenceMonitor.Current.Geofences.Add(location.geofence);
+
+            if ((bool)GeofenceDraw.IsChecked)
+                drawGeofence(chosenRouteLocation, Int32.Parse(GeofenceRadius.Text));
+        }
+
+        private void drawGeofence(LocationData location, double radius)
+        {
+            var strokeColor = Colors.DarkBlue;
+            strokeColor.A = 100;
+            var fillColor = Colors.Blue;
+            fillColor.A = 100;
+
+            List<BasicGeoposition> poslist = new List<BasicGeoposition>();
+            poslist.Add(location.getPosition());
+
+            MapPolygon circlePolygon = new MapPolygon
+            {
+                FillColor = fillColor,
+                StrokeColor = strokeColor,
+                StrokeThickness = 3,
+                StrokeDashed = true,
+                ZIndex = 1,
+                Path = new Geopath(location.GetCirclePoints(radius))
+            };
+
+            InputMap.MapElements.Add(circlePolygon);
+        }
+
         private async void getRouteWithCurrentLocation(Geopoint startLoc, LocationData endLoc)
         {
             BasicGeoposition endLocation = endLoc.getPosition();
             Geopoint endPoint = new Geopoint(endLocation);
 
-            GetRouteAndDirections(startLoc, endPoint, true, Colors.Red);
+            GetRouteAndDirections(startLoc, endPoint, Colors.Red);
         }
 
-        private async void getRoute(LocationData startLoc, LocationData endLoc)
-        {
-            BasicGeoposition startLocation = startLoc.getPosition();
-            Geopoint startPoint = new Geopoint(startLocation);
-
-            BasicGeoposition endLocation = endLoc.getPosition();
-            Geopoint endPoint = new Geopoint(endLocation);
-
-            GetRouteAndDirections(startPoint, endPoint, false, Colors.Orange);
-        }
-
-        private async void GetRouteAndDirections(Geopoint startPoint, Geopoint endPoint, bool startIsGPS, Color color)
+        private async void GetRouteAndDirections(Geopoint startPoint, Geopoint endPoint, Color color)
         {
             // Get the route between the points.
             MapRouteFinderResult routeResult =
@@ -172,29 +133,26 @@ namespace RouteFencing
                 MapRouteOptimization.Time,
                 MapRouteRestrictions.None);
 
+            //Check if making the route is completed
             if (routeResult.Status == MapRouteFinderStatus.Success)
             {
-                if (startIsGPS)
+                Summary.Text = "";
+                Summary.Inlines.Add(new Run()
                 {
-                    Summary.Text = "";
-                    Summary.Inlines.Add(new Run()
-                    {
-                        Text = "Totale geschatte tijd in minuten: " + routeResult.Route.EstimatedDuration.TotalMinutes.ToString()
-                    });
-                    Summary.Inlines.Add(new LineBreak());
-                    Summary.Inlines.Add(new Run()
-                    {
-                        Text = "Totale lengte in kilometers: "
-                            + (routeResult.Route.LengthInMeters / 1000).ToString()
-                    });
-                }
+                    Text = "Total time: " + routeResult.Route.EstimatedDuration.TotalMinutes.ToString() + " min"
+                });
+                Summary.Inlines.Add(new LineBreak());
+                Summary.Inlines.Add(new Run()
+                {
+                    Text = "Total length: " + (routeResult.Route.LengthInMeters / 1000).ToString() + " km"
+                });
             }
             else
             {
                 Summary.Text = "Er is een probleem opgetreden: " + routeResult.Status.ToString();
             }
 
-            // Tekent de route op de map.
+            //Draw the route on the map
             if (routeResult.Status == MapRouteFinderStatus.Success)
             {
                 MapRouteView viewOfRoute = new MapRouteView(routeResult.Route);
@@ -218,14 +176,9 @@ namespace RouteFencing
                 case GeolocationAccessStatus.Allowed:
                     //Getting location is enabled
                     Summary.Text = "Locating your current position...";
-                    pos = await geolocator.GetGeopositionAsync();
+                    Geoposition pos = await geolocator.GetGeopositionAsync();
                     currentLocation = pos.Coordinate;
                     Summary.Text = "Location found, make an route";
-
-                    /*foreach (LocationData data in routeLocations)
-                    {
-                        AddMapIcon(data);
-                    }*/
 
                     //Zooming to current location
                     InputMap.Center = currentLocation.Point;
@@ -260,8 +213,9 @@ namespace RouteFencing
                     break;
             }
         }
+        #endregion
 
-        //Below are the event functions
+        #region Geolocator/GeofenceMonitor events
 
         private async void Geolocator_StatusChanged(Geolocator sender, StatusChangedEventArgs args)
         {
@@ -376,19 +330,72 @@ namespace RouteFencing
                 }
             });
         }
+        #endregion
 
+        #region Buttons
         private void GetRouteButton_Click(object sender, RoutedEventArgs e)
         {
             if (currentLocation != null)
             {
-                LocationData data = (LocationData)locationList.SelectedItem;
-
+                Summary.Text = "Making an route, please wait....";
+                Error.Text = "";
+                chosenRouteLocation = (LocationData)locationList.SelectedItem;
 
                 GeofenceMonitor.Current.Geofences.Clear();
                 InputMap.Routes.Clear();
-                getRouteWithCurrentLocation(currentLocation.Point, data);
 
-                AddMapIcon(data);
+                //Remove all the mapelements except the MapIcon of the current location
+                MapIcon currentLocationIcon = null;
+
+                for (int i = 0; i < InputMap.MapElements.Count; i++)
+                {
+                    if (InputMap.MapElements[i] is MapIcon)
+                    {
+                        MapIcon icon = (MapIcon)InputMap.MapElements[i];
+                        if (icon.Title.Equals(nameCurrentLocation))
+                        {
+                            currentLocationIcon = icon;
+                            break;
+                        }
+                    }
+                }
+                InputMap.MapElements.Clear();
+                InputMap.MapElements.Add(currentLocationIcon);
+
+                //Get the route and show the chosen location and the route on the map
+                getRouteWithCurrentLocation(currentLocation.Point, chosenRouteLocation);
+                AddMapIcon(chosenRouteLocation);
+            }
+            else
+            {
+                Error.Text = "Current location unknown";
+            }
+        }
+
+        private void CheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentLocation != null)
+            {
+                int radius = Int32.Parse(GeofenceRadius.Text);
+                if(radius > 1000000)
+                {
+                    Error.Text = "Radius is too big";
+                }
+                else
+                {
+                    if ((bool)GeofenceDraw.IsChecked && chosenRouteLocation != null)
+                        drawGeofence(chosenRouteLocation, radius);
+                    else
+                    {
+                        for (int i = 0; i < InputMap.MapElements.Count; i++)
+                        {
+                            if (InputMap.MapElements[i] is MapPolygon)
+                            {
+                                InputMap.MapElements.Remove(InputMap.MapElements[i]);
+                            }
+                        }
+                    }
+                }
             }
             else
             {
@@ -396,4 +403,5 @@ namespace RouteFencing
             }
         }
     }
+    #endregion
 }
