@@ -48,9 +48,9 @@ namespace RouteFencing
 
             //Fill an list with hardcoded sample locations
             routeLocations = new List<LocationData>();
-            routeLocations.Add(new LocationData("Lovensdijkstraat 63", 51.58541489, 4.79325905));
-            routeLocations.Add(new LocationData("Hogeschoollaan", 51.58405327, 4.79573339));
-            routeLocations.Add(new LocationData("Utrecht", 52.090737, 5.121420));
+            routeLocations.Add(new LocationData("Lovensdijkstraat 63", 51.58541489, 4.79325905, 35));
+            routeLocations.Add(new LocationData("Hogeschoollaan", 51.58405327, 4.79573339, 35));
+            routeLocations.Add(new LocationData("Utrecht", 52.090737, 5.121420, 35));
 
             locationList.ItemsSource = routeLocations;
             locationList.SelectedIndex = 0;
@@ -58,9 +58,16 @@ namespace RouteFencing
             GeofenceMonitor.Current.Geofences.Clear();
 
             //Setup the events
+            geolocator.PositionChanged += PositionChanged;
             GeofenceMonitor.Current.GeofenceStateChanged += OnGeofenceStateChanged;
             geolocator.StatusChanged += Geolocator_StatusChanged;
-            geolocator.PositionChanged += PositionChanged;
+            
+
+            //Draw the hardcoded locations
+            foreach (LocationData data in routeLocations)
+            {
+                AddMapIconAndGeofence(data);
+            }
         }
 
         #region Functions to draw on the map
@@ -75,7 +82,7 @@ namespace RouteFencing
             InputMap.MapElements.Add(mapIcon);
         }
 
-        private void AddMapIcon(LocationData location)
+        private void AddMapIconAndGeofence(LocationData location)
         {
             //Add an mapicon for the given location
             MapIcon mapIcon = new MapIcon();
@@ -85,11 +92,11 @@ namespace RouteFencing
             InputMap.MapElements.Add(mapIcon);
 
             //Make the geofence of the given locationdata
-            location.MakeNewGeofence(Int32.Parse(GeofenceRadius.Text));
+            if(location == chosenRouteLocation)
+                location.MakeNewGeofence(Int32.Parse(GeofenceRadius.Text));
+            else
+                location.MakeNewGeofence(location.standardGeofenceRadius);
             GeofenceMonitor.Current.Geofences.Add(location.geofence);
-
-            if ((bool)GeofenceDraw.IsChecked)
-                drawGeofence(chosenRouteLocation, Int32.Parse(GeofenceRadius.Text));
         }
 
         private void drawGeofence(LocationData location, double radius)
@@ -97,7 +104,7 @@ namespace RouteFencing
             var strokeColor = Colors.DarkBlue;
             strokeColor.A = 100;
             var fillColor = Colors.Blue;
-            fillColor.A = 100;
+            fillColor.A = 50;
 
             List<BasicGeoposition> poslist = new List<BasicGeoposition>();
             poslist.Add(location.getPosition());
@@ -115,7 +122,7 @@ namespace RouteFencing
             InputMap.MapElements.Add(circlePolygon);
         }
 
-        private async void getRouteWithCurrentLocation(Geopoint startLoc, LocationData endLoc)
+        private void getRouteWithCurrentLocation(Geopoint startLoc, LocationData endLoc)
         {
             BasicGeoposition endLocation = endLoc.getPosition();
             Geopoint endPoint = new Geopoint(endLocation);
@@ -179,6 +186,7 @@ namespace RouteFencing
                     Geoposition pos = await geolocator.GetGeopositionAsync();
                     currentLocation = pos.Coordinate;
                     Summary.Text = "Location found, make an route";
+                    Error.Text = "";
 
                     //Zooming to current location
                     InputMap.Center = currentLocation.Point;
@@ -264,6 +272,7 @@ namespace RouteFencing
                         if (icon.Title.Equals(nameCurrentLocation))
                         {
                             InputMap.MapElements.Remove(icon);
+                            break;
                         }
                     }
                 }
@@ -335,36 +344,62 @@ namespace RouteFencing
         #region Buttons
         private void GetRouteButton_Click(object sender, RoutedEventArgs e)
         {
+            int radius = Int32.Parse(GeofenceRadius.Text);
             if (currentLocation != null)
             {
-                Summary.Text = "Making an route, please wait....";
-                Error.Text = "";
-                chosenRouteLocation = (LocationData)locationList.SelectedItem;
-
-                GeofenceMonitor.Current.Geofences.Clear();
-                InputMap.Routes.Clear();
-
-                //Remove all the mapelements except the MapIcon of the current location
-                MapIcon currentLocationIcon = null;
-
-                for (int i = 0; i < InputMap.MapElements.Count; i++)
+                if (radius < 1000000)
                 {
-                    if (InputMap.MapElements[i] is MapIcon)
+                    Summary.Text = "Making an route, please wait....";
+                    Error.Text = "";
+                    chosenRouteLocation = (LocationData)locationList.SelectedItem;
+
+                    GeofenceMonitor.Current.Geofences.Clear();
+                    InputMap.Routes.Clear();
+
+                    //Remove all the mapelements except the MapIcon of the current location
+                    //This will also reset the geofences, their radius will be set back to their standard geofence radius except the location for the route
+
+                    for (int i = 0; i < InputMap.MapElements.Count; i++)
                     {
-                        MapIcon icon = (MapIcon)InputMap.MapElements[i];
-                        if (icon.Title.Equals(nameCurrentLocation))
+                        if (InputMap.MapElements[i] is MapIcon)
                         {
-                            currentLocationIcon = icon;
-                            break;
+                            MapIcon icon = (MapIcon)InputMap.MapElements[i];
+                            if (!icon.Title.Equals(nameCurrentLocation))
+                            {
+                                InputMap.MapElements.Remove(icon);
+                                i--;
+                            }
+                        }
+                        else
+                        {
+                            InputMap.MapElements.Remove(InputMap.MapElements[i]);
+                            i--;
+                        }
+                    }
+
+                    //Redraw the route locations
+                    foreach (LocationData data in routeLocations)
+                    {
+                        AddMapIconAndGeofence(data);
+                    }
+
+                    //Get the route and draw it on the map
+                    //Also redraw the geofences with their right radius
+                    getRouteWithCurrentLocation(currentLocation.Point, chosenRouteLocation);
+                    if ((bool)GeofenceDraw.IsChecked && chosenRouteLocation != null)
+                    {
+                        drawGeofence(chosenRouteLocation, radius);
+                        foreach (LocationData data in routeLocations)
+                        {
+                            if (data != chosenRouteLocation)
+                                drawGeofence(data, data.standardGeofenceRadius);
                         }
                     }
                 }
-                InputMap.MapElements.Clear();
-                InputMap.MapElements.Add(currentLocationIcon);
-
-                //Get the route and show the chosen location and the route on the map
-                getRouteWithCurrentLocation(currentLocation.Point, chosenRouteLocation);
-                AddMapIcon(chosenRouteLocation);
+                else
+                {
+                    Error.Text = "Radius is too big";
+                }
             }
             else
             {
@@ -374,32 +409,35 @@ namespace RouteFencing
 
         private void CheckBox_Click(object sender, RoutedEventArgs e)
         {
-            if (currentLocation != null)
+            if ((bool)GeofenceDraw.IsChecked)
             {
-                int radius = Int32.Parse(GeofenceRadius.Text);
-                if(radius > 1000000)
+                //Check if there already is a route
+                if (chosenRouteLocation != null)
                 {
-                    Error.Text = "Radius is too big";
+                    foreach (LocationData data in routeLocations)
+                    {
+                            drawGeofence(data, data.geofenceRadius);
+                    }
                 }
                 else
                 {
-                    if ((bool)GeofenceDraw.IsChecked && chosenRouteLocation != null)
-                        drawGeofence(chosenRouteLocation, radius);
-                    else
+                    foreach (LocationData data in routeLocations)
                     {
-                        for (int i = 0; i < InputMap.MapElements.Count; i++)
-                        {
-                            if (InputMap.MapElements[i] is MapPolygon)
-                            {
-                                InputMap.MapElements.Remove(InputMap.MapElements[i]);
-                            }
-                        }
+                            drawGeofence(data, data.standardGeofenceRadius);
                     }
                 }
             }
             else
             {
-                Error.Text = "Current location unknown";
+                //Remove al the drawed polygons of the geofences
+                for (int i = 0; i < InputMap.MapElements.Count; i++)
+                {
+                    if (InputMap.MapElements[i] is MapPolygon)
+                    {
+                        InputMap.MapElements.Remove(InputMap.MapElements[i]);
+                        i--;
+                    }
+                }
             }
         }
     }

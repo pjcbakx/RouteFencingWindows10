@@ -13,13 +13,16 @@ namespace RouteFencing.Model
         public String name { get; }
         private BasicGeoposition position;
         public Geofence geofence;
+        public int standardGeofenceRadius;
+        public int geofenceRadius;
 
-        public LocationData(String name, double latitude, double longitude)
+        public LocationData(String name, double latitude, double longitude, int geofenceradius)
         {
             this.name = name;
             this.position = new BasicGeoposition();
             this.position.Longitude = longitude;
             this.position.Latitude = latitude;
+            standardGeofenceRadius = geofenceradius;
         }
 
         public BasicGeoposition getPosition()
@@ -34,6 +37,7 @@ namespace RouteFencing.Model
                 MonitoredGeofenceStates.Exited |
                 MonitoredGeofenceStates.Removed;
             TimeSpan dwellTime = TimeSpan.FromSeconds(1);
+            geofenceRadius = radius;
             geofence = new Geofence(name, circle, monitoredStates, false, dwellTime);
         }
 
@@ -43,22 +47,22 @@ namespace RouteFencing.Model
             double radianToDegrees = 180.0 / Math.PI;
             double earthRadius = 6378137.0;
 
-            var latA = point.Latitude * degreesToRadian;
-            var lonA = point.Longitude * degreesToRadian;
-            var angularDistance = distance / earthRadius;
-            var trueCourse = bearing * degreesToRadian;
+            double latA = point.Latitude * degreesToRadian;
+            double lonA = point.Longitude * degreesToRadian;
+            double angularDistance = distance / earthRadius;
+            double trueCourse = bearing * degreesToRadian;
 
-            var lat = Math.Asin(
+            double lat = Math.Asin(
                 Math.Sin(latA) * Math.Cos(angularDistance) +
                 Math.Cos(latA) * Math.Sin(angularDistance) * Math.Cos(trueCourse));
 
-            var dlon = Math.Atan2(
+            double dlon = Math.Atan2(
                 Math.Sin(trueCourse) * Math.Sin(angularDistance) * Math.Cos(latA),
                 Math.Cos(angularDistance) - Math.Sin(latA) * Math.Sin(lat));
 
-            var lon = ((lonA + dlon + Math.PI) % (Math.PI * 2)) - Math.PI;
+            double lon = ((lonA + dlon + Math.PI) % (Math.PI * 2)) - Math.PI;
 
-            var result = new BasicGeoposition { Latitude = lat * radianToDegrees, Longitude = lon * radianToDegrees };
+            BasicGeoposition result = new BasicGeoposition { Latitude = lat * radianToDegrees, Longitude = lon * radianToDegrees };
 
             return result;
         }
@@ -66,7 +70,7 @@ namespace RouteFencing.Model
         public IList<BasicGeoposition> GetCirclePoints(double radius)
         {
             int nrOfPoints = 50;
-            var angle = 360.0 / nrOfPoints;
+            double angle = 360.0 / nrOfPoints;
             List<BasicGeoposition> locations = new List<BasicGeoposition>();
             for (int i = 0; i <= nrOfPoints; i++)
             {
